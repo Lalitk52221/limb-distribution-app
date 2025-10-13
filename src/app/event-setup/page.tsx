@@ -23,13 +23,13 @@ export default function EventSetupPage() {
 
   const fetchEvents = async () => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('events')
         .select('*')
         .order('event_date', { ascending: false })
 
       if (error) throw error
-      // setEvents(data || []) -- removed because 'data' is not used
+      setEvents(data || [])
     } catch (error: any) {
       console.error('Error:', error)
     } finally {
@@ -48,7 +48,14 @@ export default function EventSetupPage() {
 
       if (error) throw error
 
-      alert('Event created successfully!')
+      if (data && data.length > 0) {
+        localStorage.setItem('current_event', data[0].id)
+        alert('Event created successfully! Redirecting to registration...')
+        router.push('/dashboard/registration')
+      } else {
+        alert('Event created, but could not find event ID for redirect.')
+      }
+
       setFormData({
         event_name: '',
         event_date: new Date().toISOString().split('T')[0],
