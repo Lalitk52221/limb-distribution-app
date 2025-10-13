@@ -142,8 +142,8 @@ export default function SummaryPage() {
     return total > 0 ? Math.round((count / total) * 100) : 0
   }
 
-  if (loading) return <div className="text-center py-8">Loading summary...</div>
-  if (!summary) return <div className="text-center py-8">No data available</div>
+  if (loading) return <div className="text-center py-8 text-black">Loading summary...</div>
+  if (!summary) return <div className="text-center py-8 text-black">No data available</div>
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">

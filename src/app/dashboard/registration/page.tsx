@@ -65,10 +65,17 @@ export default function RegistrationPage() {
 
     setUploading(true)
     try {
-      // Generate registration number
-      const regNumber = `REG-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
+      // Generate sequential registration number
+      const { count, error: countError } = await supabase
+        .from('beneficiaries')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId);
 
-      const { data: result, error } = await supabase
+      if (countError) throw countError;
+      const nextNumber = ((count ?? 0) + 1).toString().padStart(4, '0');
+      const regNumber = `REG-${nextNumber}`;
+
+      const { error } = await supabase
         .from('beneficiaries')
         .insert([{
           ...data,
@@ -78,23 +85,22 @@ export default function RegistrationPage() {
           current_step: 'before_photo',
           completed_steps: ['registration']
         }])
-        .select()
+        .select();
 
-      if (error) throw error
+      if (error) throw error;
 
-      alert(`Beneficiary registered successfully! Registration Number: ${regNumber}`)
-      reset()
-      
+      alert(`Beneficiary registered successfully! Registration Number: ${regNumber}`);
+      reset();
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error registering beneficiary: ' + error.message)
+      console.error('Error:', error);
+      alert('Error registering beneficiary: ' + error.message);
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
   }
 
   if (!currentEvent) {
-    return <div className="text-center py-8">Loading event details...</div>
+    return <div className="text-center py-8 text-black">Loading event details...</div>
   }
 
   return (

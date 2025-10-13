@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -104,7 +105,7 @@ export default function BeforePhotoPage() {
     }
   }
 
-  if (loading) return <div className="text-center py-8">Loading...</div>
+  if (loading) return <div className="text-center py-8 text-black">Loading...</div>
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">

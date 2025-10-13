@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -116,7 +117,7 @@ export default function MeasurementPage() {
     }
   }
 
-  if (loading) return <div className="text-center py-8">Loading...</div>
+  if (loading) return <div className="text-center py-8 text-black">Loading...</div>
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -193,7 +194,7 @@ export default function MeasurementPage() {
                 {/* Instructions */}
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700">
-                    <strong>Instructions:</strong> Take measurements for the artificial limb, then click "Mark Measurement Completed" to move to next step.
+                    <strong>Instructions:</strong> Take measurements for the artificial limb, then click &quot;Mark Measurement Completed&quot; to move to next step.
                   </p>
                 </div>
               </div>

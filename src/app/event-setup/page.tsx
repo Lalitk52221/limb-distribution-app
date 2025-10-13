@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import { useState, useEffect } from 'react'
@@ -28,7 +29,7 @@ export default function EventSetupPage() {
         .order('event_date', { ascending: false })
 
       if (error) throw error
-      // setEvents(data || []) -- removed since 'data' is not used
+      // setEvents(data || []) -- removed because 'data' is not used
     } catch (error: any) {
       console.error('Error:', error)
     } finally {
@@ -67,7 +68,7 @@ export default function EventSetupPage() {
     router.push('/dashboard/registration')
   }
 
-  if (loading) return <div className="text-center py-8">Loading...</div>
+  if (loading) return <div className="text-center py-8 text-black">Loading...</div>
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">

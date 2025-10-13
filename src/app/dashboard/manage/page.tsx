@@ -2,6 +2,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Image from 'next/image'
 
 interface Beneficiary {
   id: string
@@ -49,6 +50,7 @@ export default function ManagePage() {
     }
     fetchEvent(eventId)
     fetchBeneficiaries(eventId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchEvent = async (eventId: string) => {
@@ -120,7 +122,7 @@ export default function ManagePage() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto py-8 px-4">
-        <div className="text-center">Loading...</div>
+        <div className="text-center text-black">Loading...</div>
       </div>
     )
   }
@@ -236,8 +238,9 @@ export default function ManagePage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {beneficiary.before_photo_url ? (
-                      <image 
-                        src={beneficiary.before_photo_url} 
+                      <Image 
+                        src={beneficiary.before_photo_url}
+                         
                         alt="Before" 
                         className="w-16 h-16 object-cover rounded-lg border"
                       />
@@ -247,7 +250,7 @@ export default function ManagePage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {beneficiary.after_photo_url ? (
-                      <img 
+                      <Image 
                         src={beneficiary.after_photo_url} 
                         alt="After" 
                         className="w-16 h-16 object-cover rounded-lg border"
