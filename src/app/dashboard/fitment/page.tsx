@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -7,43 +8,54 @@ interface Beneficiary {
   reg_number: string
   name: string
   type_of_aid: string
-  completed_steps: string[]
-  step_volunteers: any
+  current_step: string
   measurement_data?: any
+  fitment_data?: any
 }
 
 export default function FitmentPage() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
-  const [volunteerName, setVolunteerName] = useState('')
-  const [fitmentData, setFitmentData] = useState<Record<string, any>>({})
+  const [currentEvent, setCurrentEvent] = useState<any>(null)
 
   useEffect(() => {
-    fetchBeneficiaries()
+    const eventId = localStorage.getItem('current_event')
+    if (!eventId) {
+      alert('Please select an event first')
+      window.location.href = '/event-setup'
+      return
+    }
+    fetchEvent(eventId)
+    fetchBeneficiaries(eventId)
   }, [])
 
-  const fetchBeneficiaries = async () => {
+  const fetchEvent = async (eventId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (error) throw error
+      setCurrentEvent(data)
+    } catch (error: any) {
+      console.error('Error:', error)
+    }
+  }
+
+  const fetchBeneficiaries = async (eventId: string) => {
     try {
       const { data, error } = await supabase
         .from('beneficiaries')
         .select('*')
+        .eq('event_id', eventId)
         .eq('current_step', 'fitment')
         .order('created_at', { ascending: true })
 
       if (error) throw error
       setBeneficiaries(data || [])
-      
-      // Initialize fitment data
-      const initialFitment: Record<string, any> = {}
-      data?.forEach(b => {
-        initialFitment[b.id] = {
-          comfort_level: '',
-          adjustments_made: '',
-          fitment_notes: ''
-        }
-      })
-      setFitmentData(initialFitment)
     } catch (error: any) {
       console.error('Error:', error)
       alert('Error loading beneficiaries: ' + error.message)
@@ -52,41 +64,14 @@ export default function FitmentPage() {
     }
   }
 
-  const updateFitmentData = (beneficiaryId: string, field: string, value: string) => {
-    setFitmentData(prev => ({
-      ...prev,
-      [beneficiaryId]: {
-        ...prev[beneficiaryId],
-        [field]: value
-      }
-    }))
-  }
-
-  const completeFitment = async (beneficiaryId: string) => {
-    if (!volunteerName.trim()) {
-      alert('Please enter your volunteer name')
-      return
-    }
-
-    const data = fitmentData[beneficiaryId]
-    if (!data.comfort_level) {
-      alert('Please select comfort level')
-      return
-    }
-
+  const markFitmentDone = async (beneficiaryId: string) => {
     setUpdating(beneficiaryId)
     try {
-      const beneficiary = beneficiaries.find(b => b.id === beneficiaryId)
       const { error } = await supabase
         .from('beneficiaries')
         .update({
-          fitment_data: data,
           current_step: 'extra_items',
-          completed_steps: [...(beneficiary?.completed_steps || []), 'fitment'],
-          step_volunteers: {
-            ...(beneficiary?.step_volunteers || {}),
-            fitment: volunteerName
-          }
+          fitment_data: { status: 'completed', completed_at: new Date().toISOString() }
         })
         .eq('id', beneficiaryId)
 
@@ -94,11 +79,40 @@ export default function FitmentPage() {
 
       // Remove from local list
       setBeneficiaries(prev => prev.filter(b => b.id !== beneficiaryId))
-      alert('Fitment completed! Moved to Step 5: Extra Items')
+      alert('Fitment marked as completed! Moved to Step 5: Extra Items')
       
     } catch (error: any) {
       console.error('Error:', error)
-      alert('Error completing fitment: ' + error.message)
+      alert('Error updating fitment: ' + error.message)
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const revertToPreviousStep = async (beneficiaryId: string) => {
+    if (!confirm('Are you sure you want to send this beneficiary back to Measurement step?')) {
+      return
+    }
+
+    setUpdating(beneficiaryId)
+    try {
+      const { error } = await supabase
+        .from('beneficiaries')
+        .update({
+          current_step: 'measurement',
+          fitment_data: null
+        })
+        .eq('id', beneficiaryId)
+
+      if (error) throw error
+
+      // Remove from local list
+      setBeneficiaries(prev => prev.filter(b => b.id !== beneficiaryId))
+      alert('Beneficiary sent back to Measurement step')
+      
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error reverting step: ' + error.message)
     } finally {
       setUpdating(null)
     }
@@ -115,22 +129,13 @@ export default function FitmentPage() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Fitment</h1>
-            <p className="text-gray-600">Step 4: Fit the artificial limb and check comfort</p>
+            <p className="text-gray-600">Step 4: Mark fitment as completed</p>
+            {currentEvent && (
+              <p className="text-sm text-gray-500 mt-1">
+                Event: {currentEvent.event_name} | {new Date(currentEvent.event_date).toLocaleDateString()}
+              </p>
+            )}
           </div>
-        </div>
-
-        {/* Volunteer Name */}
-        <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Your Volunteer Name *
-          </label>
-          <input
-            type="text"
-            value={volunteerName}
-            onChange={(e) => setVolunteerName(e.target.value)}
-            placeholder="Enter your name as volunteer"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-          />
         </div>
 
         {beneficiaries.length === 0 ? (
@@ -138,83 +143,91 @@ export default function FitmentPage() {
             No beneficiaries waiting for fitment.
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {beneficiaries.map((beneficiary) => (
               <div key={beneficiary.id} className="border border-gray-200 rounded-lg p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="font-semibold text-lg">{beneficiary.name}</h3>
+                    <h3 className="font-semibold text-lg text-gray-900">{beneficiary.name}</h3>
                     <p className="text-gray-600">Reg: {beneficiary.reg_number}</p>
                     <p className="text-sm text-gray-500">Aid: {beneficiary.type_of_aid}</p>
+                    
+                    {/* Measurement Status */}
                     {beneficiary.measurement_data && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                        <strong>Measurements:</strong> Length: {beneficiary.measurement_data.length}cm, 
-                        Circumference: {beneficiary.measurement_data.circumference}cm
+                      <div className="mt-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                          ✅ Measurements Completed
+                        </span>
                       </div>
                     )}
+                    
+                    <div className="mt-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                        🦿 Waiting for Fitment
+                      </span>
+                    </div>
                   </div>
-                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">
-                    Fit Limb
-                  </span>
                 </div>
                 
-                {/* Fitment Form */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Comfort Level *
-                    </label>
-                    <select
-                      value={fitmentData[beneficiary.id]?.comfort_level || ''}
-                      onChange={(e) => updateFitmentData(beneficiary.id, 'comfort_level', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="">Select comfort level</option>
-                      <option value="excellent">Excellent - Perfect fit</option>
-                      <option value="good">Good - Minor adjustments needed</option>
-                      <option value="fair">Fair - Some discomfort</option>
-                      <option value="poor">Poor - Major adjustments needed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Adjustments Made
-                    </label>
-                    <textarea
-                      value={fitmentData[beneficiary.id]?.adjustments_made || ''}
-                      onChange={(e) => updateFitmentData(beneficiary.id, 'adjustments_made', e.target.value)}
-                      rows={2}
-                      placeholder="Describe any adjustments made to the limb..."
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Fitment Notes
-                    </label>
-                    <textarea
-                      value={fitmentData[beneficiary.id]?.fitment_notes || ''}
-                      onChange={(e) => updateFitmentData(beneficiary.id, 'fitment_notes', e.target.value)}
-                      rows={3}
-                      placeholder="Any additional notes about the fitment process..."
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
+                {/* Fitment Status */}
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-2">Fitment Status:</h4>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-purple-400 rounded-full"></div>
+                    <span className="text-gray-700">Pending - Artificial limb needs to be fitted</span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => completeFitment(beneficiary.id)}
-                  disabled={updating === beneficiary.id}
-                  className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium mt-4"
-                >
-                  {updating === beneficiary.id ? 'Completing...' : 'Complete Fitment & Move to Step 5'}
-                </button>
+                {/* Action Buttons */}
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => markFitmentDone(beneficiary.id)}
+                    disabled={updating === beneficiary.id}
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center"
+                  >
+                    {updating === beneficiary.id ? (
+                      <>⏳ Processing...</>
+                    ) : (
+                      <>✅ Mark Fitment Completed</>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => revertToPreviousStep(beneficiary.id)}
+                    disabled={updating === beneficiary.id}
+                    className="px-4 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center"
+                    title="Send back to Measurement step"
+                  >
+                    ↩️
+                  </button>
+                </div>
+
+                {/* Instructions */}
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    <strong>Instructions:</strong> Fit the artificial limb to the beneficiary, ensure proper comfort and functionality, then click &quot;Mark Fitment Completed&quot; to move to next step.
+                  </p>
+                </div>
               </div>
             ))}
           </div>
         )}
+
+        {/* Quick Stats */}
+        <div className="mt-8 p-4 bg-green-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-green-900">Fitment Progress</h3>
+              <p className="text-green-700 text-sm">
+                {beneficiaries.length} {beneficiaries.length === 1 ? 'person' : 'people'} waiting for fitment
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-green-600">{beneficiaries.length}</div>
+              <div className="text-sm text-green-800">Pending</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

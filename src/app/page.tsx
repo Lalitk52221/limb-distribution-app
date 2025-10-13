@@ -22,6 +22,18 @@ export default function Home() {
             Streamlined 6-step workflow for efficient camp management. Each step handled by different volunteers on separate devices.
           </p>
         </div>
+{/* Main Action */}
+      <div className="text-center mb-16">
+          <Link 
+            href="/event-setup"
+            className="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 text-lg font-semibold transition-colors"
+          >
+            Start New Camp Event
+          </Link>
+          <p className="text-gray-600 mt-4">
+            Create an event to begin the registration and distribution process
+          </p>
+        </div>
 
         {/* Workflow Steps */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
@@ -136,3 +148,70 @@ const ArrowRight = ({ className }: { className?: string }) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
   </svg>
 )
+
+// import Link from 'next/link'
+
+// export default function Home() {
+//   return (
+//     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+//       <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+//         {/* Header */}
+//         <div className="text-center mb-16">
+//           <h1 className="text-4xl font-bold text-gray-900 mb-4">
+//             Artificial Limb Distribution Camp
+//           </h1>
+//           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+//             Complete camp management system for artificial limb distribution
+//           </p>
+//         </div>
+
+//         {/* Main Action */}
+//         <div className="text-center mb-16">
+//           <Link 
+//             href="/event-setup"
+//             className="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 text-lg font-semibold transition-colors"
+//           >
+//             Start New Camp Event
+//           </Link>
+//           <p className="text-gray-600 mt-4">
+//             Create an event to begin the registration and distribution process
+//           </p>
+//         </div>
+
+//         {/* Workflow Steps */}
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+//           {[
+//             { number: 1, name: 'Event Setup', description: 'Create camp event with date and location', color: 'blue' },
+//             { number: 2, name: 'Registration', description: 'Register beneficiary details', color: 'green' },
+//             { number: 3, name: 'Before Photo', description: 'Capture before photo', color: 'yellow' },
+//             { number: 4, name: 'Measurement', description: 'Take measurements for limb', color: 'purple' },
+//             { number: 5, name: 'Fitment', description: 'Fit the artificial limb', color: 'indigo' },
+//             { number: 6, name: 'Extra Items', description: 'Provide sticks, shoes, etc.', color: 'pink' },
+//             { number: 7, name: 'After Photo', description: 'Capture after photo with limb', color: 'red' },
+//             { number: 8, name: 'Management', description: 'Monitor camp progress and stats', color: 'green' },
+//             { number: 9, name: 'Export Data', description: 'Generate Excel reports with photos', color: 'blue' },
+//           ].map((step) => (
+//             <div
+//               key={step.number}
+//               className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-${step.color}-500`}
+//             >
+//               <div className="flex items-start space-x-4">
+//                 <div className={`w-12 h-12 bg-${step.color}-100 text-${step.color}-600 rounded-full flex items-center justify-center font-bold text-lg`}>
+//                   {step.number}
+//                 </div>
+//                 <div className="flex-1">
+//                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
+//                     {step.name}
+//                   </h3>
+//                   <p className="text-gray-600 text-sm">
+//                     {step.description}
+//                   </p>
+//                 </div>
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+//       </div>
+//     </div>
+//   )
+// }

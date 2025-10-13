@@ -1,117 +1,121 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import { useEffect, useState } from 'react'
-// import { createClient } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Beneficiary } from '@/types'
+
+interface Beneficiary {
+  id: string
+  reg_number: string
+  name: string
+  type_of_aid: string
+  current_step: string
+  before_photo_url?: string
+  after_photo_url?: string
+  created_at: string
+}
+
+interface Stats {
+  total: number
+  registered: number
+  before_photo: number
+  measurement: number
+  fitment: number
+  extra_items: number
+  after_photo: number
+  completed: number
+}
 
 export default function ManagePage() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState<string | null>(null)
-  const [filter, setFilter] = useState('all')
+  const [currentEvent, setCurrentEvent] = useState<any>(null)
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    registered: 0,
+    before_photo: 0,
+    measurement: 0,
+    fitment: 0,
+    extra_items: 0,
+    after_photo: 0,
+    completed: 0
+  })
 
   useEffect(() => {
-    fetchBeneficiaries()
+    const eventId = localStorage.getItem('current_event')
+    if (!eventId) {
+      alert('Please select an event first')
+      window.location.href = '/event-setup'
+      return
+    }
+    fetchEvent(eventId)
+    fetchBeneficiaries(eventId)
   }, [])
 
-  const fetchBeneficiaries = async () => {
+  const fetchEvent = async (eventId: string) => {
     try {
-      // const supabase = createClient()
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (error) throw error
+      setCurrentEvent(data)
+    } catch (error: any) {
+      console.error('Error:', error)
+    }
+  }
+
+  const fetchBeneficiaries = async (eventId: string) => {
+    try {
       const { data, error } = await supabase
         .from('beneficiaries')
         .select('*')
+        .eq('event_id', eventId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
       setBeneficiaries(data || [])
-    } catch (error) {
-      console.error('Error fetching beneficiaries:', error)
-      alert('Error loading data')
+      calculateStats(data || [])
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error loading data: ' + error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const updateStatus = async (id: string, status: Beneficiary['status']) => {
-    setUpdating(id)
+  const calculateStats = (data: Beneficiary[]) => {
+    const stats: Stats = {
+      total: data.length,
+      registered: data.filter(b => b.current_step === 'registration').length,
+      before_photo: data.filter(b => b.current_step === 'before_photo').length,
+      measurement: data.filter(b => b.current_step === 'measurement').length,
+      fitment: data.filter(b => b.current_step === 'fitment').length,
+      extra_items: data.filter(b => b.current_step === 'extra_items').length,
+      after_photo: data.filter(b => b.current_step === 'after_photo').length,
+      completed: data.filter(b => b.current_step === 'completed').length
+    }
+    setStats(stats)
+  }
+
+  const updateStatus = async (id: string, current_step: string) => {
     try {
-      // const supabase = createClient()
       const { error } = await supabase
         .from('beneficiaries')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ current_step })
         .eq('id', id)
 
       if (error) throw error
       
-      // Update local state
-      setBeneficiaries(prev => 
-        prev.map(b => b.id === id ? { ...b, status } : b)
-      )
-    } catch (error) {
-      console.error('Error updating status:', error)
-      alert('Error updating status')
-    } finally {
-      setUpdating(null)
+      // Refresh data
+      const eventId = localStorage.getItem('current_event')
+      if (eventId) fetchBeneficiaries(eventId)
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error updating status: ' + error.message)
     }
   }
-
-  const handleAfterPhotoUpload = async (id: string, file: File) => {
-    setUpdating(id)
-    try {
-      // const supabase = createClient()
-      
-      // Upload photo
-      const fileExt = file.name.split('.').pop()
-      const fileName = `after-${id}-${Date.now()}.${fileExt}`
-      
-      const { error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(fileName, file)
-
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName)
-
-      // Update beneficiary record
-      const { error: updateError } = await supabase
-        .from('beneficiaries')
-        .update({ 
-          after_photo_url: publicUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-
-      if (updateError) throw updateError
-
-      // Update local state
-      setBeneficiaries(prev =>
-        prev.map(b => b.id === id ? { ...b, after_photo_url: publicUrl } : b)
-      )
-
-      alert('After photo uploaded successfully!')
-    } catch (error) {
-      console.error('Error uploading photo:', error)
-      alert('Error uploading photo')
-    } finally {
-      setUpdating(null)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'registered': return 'bg-blue-100 text-blue-800'
-      case 'measuring': return 'bg-yellow-100 text-yellow-800'
-      case 'preparing': return 'bg-orange-100 text-orange-800'
-      case 'completed': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const filteredBeneficiaries = beneficiaries.filter(b => 
-    filter === 'all' || b.status === filter
-  )
 
   if (loading) {
     return (
@@ -124,29 +128,57 @@ export default function ManagePage() {
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Camp Management</h1>
-        <p className="text-gray-600 mb-6">Track and update beneficiary progress</p>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Camp Management Dashboard</h1>
+            {currentEvent && (
+              <p className="text-gray-600">
+                Event: {currentEvent.event_name} | {new Date(currentEvent.event_date).toLocaleDateString()} | {currentEvent.location}
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+            <div className="text-sm text-gray-600">Total Beneficiaries</div>
+          </div>
+        </div>
 
-        {/* Status Filter */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {['all', 'registered', 'measuring', 'preparing', 'completed'].map(status => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg capitalize font-medium transition-colors ${
-                filter === status 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {status === 'all' ? 'All' : status} 
-              {status !== 'all' && (
-                <span className="ml-2 bg-white bg-opacity-20 px-2 py-1 rounded-full text-sm">
-                  {beneficiaries.filter(b => b.status === status).length}
-                </span>
-              )}
-            </button>
-          ))}
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-blue-600">{stats.registered}</div>
+            <div className="text-sm text-blue-800">Registered</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-green-600">{stats.before_photo}</div>
+            <div className="text-sm text-green-800">Before Photo</div>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-yellow-600">{stats.measurement}</div>
+            <div className="text-sm text-yellow-800">Measurement</div>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-purple-600">{stats.fitment}</div>
+            <div className="text-sm text-purple-800">Fitment</div>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-indigo-600">{stats.extra_items}</div>
+            <div className="text-sm text-indigo-800">Extra Items</div>
+          </div>
+          <div className="bg-pink-50 border border-pink-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-pink-600">{stats.after_photo}</div>
+            <div className="text-sm text-pink-800">After Photo</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-green-600">{stats.completed}</div>
+            <div className="text-sm text-green-800">Completed</div>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+            <div className="text-xl font-bold text-gray-600">
+              {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+            </div>
+            <div className="text-sm text-gray-800">Completion Rate</div>
+          </div>
         </div>
 
         {/* Beneficiaries Table */}
@@ -161,7 +193,10 @@ export default function ManagePage() {
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Aid Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Current Step
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Before Photo
@@ -170,12 +205,12 @@ export default function ManagePage() {
                   After Photo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  Update Step
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredBeneficiaries.map((beneficiary) => (
+              {beneficiaries.map((beneficiary) => (
                 <tr key={beneficiary.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {beneficiary.reg_number}
@@ -183,14 +218,25 @@ export default function ManagePage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {beneficiary.name}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {beneficiary.type_of_aid}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(beneficiary.status)}`}>
-                      {beneficiary.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      beneficiary.current_step === 'completed' ? 'bg-green-100 text-green-800' :
+                      beneficiary.current_step === 'after_photo' ? 'bg-pink-100 text-pink-800' :
+                      beneficiary.current_step === 'extra_items' ? 'bg-indigo-100 text-indigo-800' :
+                      beneficiary.current_step === 'fitment' ? 'bg-purple-100 text-purple-800' :
+                      beneficiary.current_step === 'measurement' ? 'bg-yellow-100 text-yellow-800' :
+                      beneficiary.current_step === 'before_photo' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {beneficiary.current_step.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {beneficiary.before_photo_url ? (
-                      <img 
+                      <image 
                         src={beneficiary.before_photo_url} 
                         alt="Before" 
                         className="w-16 h-16 object-cover rounded-lg border"
@@ -207,36 +253,21 @@ export default function ManagePage() {
                         className="w-16 h-16 object-cover rounded-lg border"
                       />
                     ) : (
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) {
-                              handleAfterPhotoUpload(beneficiary.id, file)
-                            }
-                          }}
-                          disabled={updating === beneficiary.id}
-                          className="text-sm text-gray-600"
-                        />
-                        {updating === beneficiary.id && (
-                          <span className="text-xs text-gray-500">Uploading...</span>
-                        )}
-                      </div>
+                      <span className="text-gray-400 text-sm">No photo</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <select
-                      value={beneficiary.status}
-                      onChange={(e) => updateStatus(beneficiary.id, e.target.value as Beneficiary['status'])}
-                      disabled={updating === beneficiary.id}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={beneficiary.current_step}
+                      onChange={(e) => updateStatus(beneficiary.id, e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                     >
-                      <option value="registered">Registered</option>
-                      <option value="measuring">Measuring</option>
-                      <option value="preparing">Preparing Limb</option>
+                      <option value="registration">Registration</option>
+                      <option value="before_photo">Before Photo</option>
+                      <option value="measurement">Measurement</option>
+                      <option value="fitment">Fitment</option>
+                      <option value="extra_items">Extra Items</option>
+                      <option value="after_photo">After Photo</option>
                       <option value="completed">Completed</option>
                     </select>
                   </td>
@@ -245,9 +276,9 @@ export default function ManagePage() {
             </tbody>
           </table>
           
-          {filteredBeneficiaries.length === 0 && (
+          {beneficiaries.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No beneficiaries found for the selected filter.
+              No beneficiaries registered for this event yet.
             </div>
           )}
         </div>
@@ -255,159 +286,3 @@ export default function ManagePage() {
     </div>
   )
 }
-// 'use client'
-// import { useState, useEffect } from 'react'
-// import { supabase } from '@/lib/supabase'
-
-// interface Beneficiary {
-//   id: string
-//   reg_number: string
-//   name: string
-//   status: string
-//   before_photo_url?: string
-//   after_photo_url?: string
-//   current_step: string
-// }
-
-// export default function ManagePage() {
-//   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
-//   const [loading, setLoading] = useState(true)
-
-//   useEffect(() => {
-//     fetchBeneficiaries()
-    
-//     // Set up real-time subscription
-//     const subscription = supabase
-//       .channel('beneficiaries')
-//       .on('postgres_changes', 
-//         { event: '*', schema: 'public', table: 'beneficiaries' }, 
-//         () => {
-//           fetchBeneficiaries()
-//         }
-//       )
-//       .subscribe()
-
-//     return () => {
-//       subscription.unsubscribe()
-//     }
-//   }, [])
-
-//   const fetchBeneficiaries = async () => {
-//     try {
-//       const { data, error } = await supabase
-//         .from('beneficiaries')
-//         .select('*')
-//         .order('created_at', { ascending: false })
-
-//       if (error) throw error
-//       setBeneficiaries(data || [])
-//     } catch (error: any) {
-//       console.error('Error:', error)
-//       alert('Error loading data: ' + error.message)
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const updateStatus = async (id: string, current_step: string) => {
-//     try {
-//       const { error } = await supabase
-//         .from('beneficiaries')
-//         .update({ current_step })
-//         .eq('id', id)
-
-//       if (error) throw error
-      
-//       // Real-time update will refresh the list automatically
-//     } catch (error: any) {
-//       console.error('Error:', error)
-//       alert('Error updating status: ' + error.message)
-//     }
-//   }
-
-//   if (loading) {
-//     return (
-//       <div className="max-w-6xl mx-auto py-8 px-4">
-//         <div className="text-center">Loading...</div>
-//       </div>
-//     )
-//   }
-
-//   return (
-//     <div className="max-w-6xl mx-auto py-8 px-4">
-//       <div className="bg-white rounded-lg shadow-md p-6">
-//         <h1 className="text-3xl font-bold text-gray-900 mb-2">Camp Management</h1>
-//         <p className="text-gray-600 mb-6">Real-time view of all beneficiaries</p>
-
-//         <div className="overflow-x-auto">
-//           <table className="min-w-full divide-y divide-gray-200">
-//             <thead className="bg-gray-50">
-//               <tr>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reg No.</th>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Step</th>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Before Photo</th>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">After Photo</th>
-//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Update Step</th>
-//               </tr>
-//             </thead>
-//             <tbody className="bg-white divide-y divide-gray-200">
-//               {beneficiaries.map((beneficiary) => (
-//                 <tr key={beneficiary.id} className="hover:bg-gray-50">
-//                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-//                     {beneficiary.reg_number}
-//                   </td>
-//                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-//                     {beneficiary.name}
-//                   </td>
-//                   <td className="px-6 py-4 whitespace-nowrap">
-//                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-//                       {beneficiary.current_step}
-//                     </span>
-//                   </td>
-//                   <td className="px-6 py-4 whitespace-nowrap">
-//                     {beneficiary.before_photo_url ? (
-//                       <img 
-//                         src={beneficiary.before_photo_url} 
-//                         alt="Before" 
-//                         className="w-16 h-16 object-cover rounded-lg border"
-//                       />
-//                     ) : (
-//                       <span className="text-gray-400 text-sm">No photo</span>
-//                     )}
-//                   </td>
-//                   <td className="px-6 py-4 whitespace-nowrap">
-//                     {beneficiary.after_photo_url ? (
-//                       <img 
-//                         src={beneficiary.after_photo_url} 
-//                         alt="After" 
-//                         className="w-16 h-16 object-cover rounded-lg border"
-//                       />
-//                     ) : (
-//                       <span className="text-gray-400 text-sm">No photo</span>
-//                     )}
-//                   </td>
-//                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-//                     <select
-//                       value={beneficiary.current_step}
-//                       onChange={(e) => updateStatus(beneficiary.id, e.target.value)}
-//                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-//                     >
-//                       <option value="registration">Registration</option>
-//                       <option value="before_photo">Before Photo</option>
-//                       <option value="measurement">Measurement</option>
-//                       <option value="fitment">Fitment</option>
-//                       <option value="extra_items">Extra Items</option>
-//                       <option value="after_photo">After Photo</option>
-//                       <option value="completed">Completed</option>
-//                     </select>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }

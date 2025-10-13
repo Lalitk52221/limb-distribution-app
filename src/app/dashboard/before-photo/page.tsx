@@ -8,24 +8,46 @@ interface Beneficiary {
   name: string
   type_of_aid: string
   completed_steps: string[]
-  step_volunteers: any
 }
 
 export default function BeforePhotoPage() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUpdating] = useState<string | null>(null)
-  const [volunteerName, setVolunteerName] = useState('')
+  const [currentEvent, setCurrentEvent] = useState<any>(null)
 
   useEffect(() => {
-    fetchBeneficiaries()
+    const eventId = localStorage.getItem('current_event')
+    if (!eventId) {
+      alert('Please select an event first')
+      window.location.href = '/event-setup'
+      return
+    }
+    fetchEvent(eventId)
+    fetchBeneficiaries(eventId)
   }, [])
 
-  const fetchBeneficiaries = async () => {
+  const fetchEvent = async (eventId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (error) throw error
+      setCurrentEvent(data)
+    } catch (error: any) {
+      console.error('Error:', error)
+    }
+  }
+
+  const fetchBeneficiaries = async (eventId: string) => {
     try {
       const { data, error } = await supabase
         .from('beneficiaries')
         .select('*')
+        .eq('event_id', eventId)
         .eq('current_step', 'before_photo')
         .order('created_at', { ascending: true })
 
@@ -40,11 +62,6 @@ export default function BeforePhotoPage() {
   }
 
   const handlePhotoUpload = async (beneficiaryId: string, file: File) => {
-    if (!volunteerName.trim()) {
-      alert('Please enter your volunteer name')
-      return
-    }
-
     setUpdating(beneficiaryId)
     try {
       // Upload photo to Supabase Storage
@@ -62,18 +79,14 @@ export default function BeforePhotoPage() {
         .from('photos')
         .getPublicUrl(fileName)
 
-      // Update beneficiary record
+      // Update beneficiary
       const beneficiary = beneficiaries.find(b => b.id === beneficiaryId)
       const { error: updateError } = await supabase
         .from('beneficiaries')
         .update({
           before_photo_url: publicUrl,
           current_step: 'measurement',
-          completed_steps: [...(beneficiary?.completed_steps || []), 'before_photo'],
-          step_volunteers: {
-            ...(beneficiary?.step_volunteers || {}),
-            before_photo: volunteerName
-          }
+          completed_steps: [...(beneficiary?.completed_steps || []), 'before_photo']
         })
         .eq('id', beneficiaryId)
 
@@ -103,21 +116,12 @@ export default function BeforePhotoPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Before Photography</h1>
             <p className="text-gray-600">Step 2: Capture before photo of beneficiary</p>
+            {currentEvent && (
+              <p className="text-sm text-gray-500 mt-1">
+                Event: {currentEvent.event_name} | {new Date(currentEvent.event_date).toLocaleDateString()}
+              </p>
+            )}
           </div>
-        </div>
-
-        {/* Volunteer Name */}
-        <div className="mb-6 p-4 bg-green-50 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Your Volunteer Name *
-          </label>
-          <input
-            type="text"
-            value={volunteerName}
-            onChange={(e) => setVolunteerName(e.target.value)}
-            placeholder="Enter your name as volunteer"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-          />
         </div>
 
         {beneficiaries.length === 0 ? (
@@ -130,7 +134,7 @@ export default function BeforePhotoPage() {
               <div key={beneficiary.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-semibold text-lg">{beneficiary.name}</h3>
+                    <h3 className="font-semibold text-lg text-gray-900">{beneficiary.name}</h3>
                     <p className="text-gray-600">Reg: {beneficiary.reg_number}</p>
                     <p className="text-sm text-gray-500">Aid: {beneficiary.type_of_aid}</p>
                   </div>

@@ -1,78 +1,11 @@
-// 'use client'
-// import { useState } from 'react'
-// import { useForm } from 'react-hook-form'
-// // import { createClient } from '@/lib/supabase'
-// import { supabase } from '@/lib/supabase'
-
-// interface RegistrationForm {
-//   camp_date: string
-//   name: string
-//   father_name?: string
-//   date_of_birth?: string
-//   age?: number
-//   address?: string
-//   state?: string
-//   phone_number?: string
-//   aadhar_number?: string
-//   type_of_aid: string
-//   volunteer_name: string
-// }
-
-// export default function RegistrationPage() {
-//   const [uploading, setUploading] = useState(false)
-//   const [volunteerName, setVolunteerName] = useState('')
-
-//   const {
-//     register,
-//     handleSubmit,
-//     formState: { errors },
-//     reset
-//   } = useForm<RegistrationForm>()
-
-//   const onSubmit = async (data: RegistrationForm) => {
-//     if (!volunteerName.trim()) {
-//       alert('Please enter your volunteer name')
-//       return
-//     }
-
-//     setUploading(true)
-//     try {
-//       // const supabase = createClient()
-      
-//       // Generate registration number
-//       const regNumber = `REG-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
-
-//       const {data: result, error } = await supabase
-//         .from('beneficiaries')
-//         .insert([{
-//           ...data,
-//           reg_number: regNumber,
-//           current_step: 'before_photo',
-//           completed_steps: ['registration'],
-//           step_volunteers: { registration: volunteerName },
-//           volunteer_name: volunteerName
-//         }])
-
-//       if (error) throw error
-
-//       alert(`Beneficiary registered successfully! Registration Number: ${regNumber}`)
-//       reset()
-      
-//     } catch (error) {
-//       console.error('Error:', error)
-//       alert('Error registering beneficiary. Please try again.')
-//     } finally {
-//       setUploading(false)
-//     }
-//   }
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 interface RegistrationForm {
-  camp_date: string
   name: string
   father_name?: string
   date_of_birth?: string
@@ -85,8 +18,9 @@ interface RegistrationForm {
 }
 
 export default function RegistrationPage() {
+  const router = useRouter()
   const [uploading, setUploading] = useState(false)
-  const [volunteerName, setVolunteerName] = useState('')
+  const [currentEvent, setCurrentEvent] = useState<any>(null)
 
   const {
     register,
@@ -95,9 +29,37 @@ export default function RegistrationPage() {
     reset
   } = useForm<RegistrationForm>()
 
+  useEffect(() => {
+    const eventId = localStorage.getItem('current_event')
+    if (!eventId) {
+      alert('Please select an event first')
+      router.push('/event-setup')
+      return
+    }
+    fetchEvent(eventId)
+  }, [router])
+
+  const fetchEvent = async (eventId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+
+      if (error) throw error
+      setCurrentEvent(data)
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert('Error loading event: ' + error.message)
+    }
+  }
+
   const onSubmit = async (data: RegistrationForm) => {
-    if (!volunteerName.trim()) {
-      alert('Please enter your volunteer name')
+    const eventId = localStorage.getItem('current_event')
+    if (!eventId) {
+      alert('Please select an event first')
+      router.push('/event-setup')
       return
     }
 
@@ -111,9 +73,10 @@ export default function RegistrationPage() {
         .insert([{
           ...data,
           reg_number: regNumber,
+          event_id: eventId,
+          camp_date: currentEvent.event_date,
           current_step: 'before_photo',
-          completed_steps: ['registration'],
-          step_volunteers: { registration: volunteerName }
+          completed_steps: ['registration']
         }])
         .select()
 
@@ -130,6 +93,10 @@ export default function RegistrationPage() {
     }
   }
 
+  if (!currentEvent) {
+    return <div className="text-center py-8">Loading event details...</div>
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -140,45 +107,26 @@ export default function RegistrationPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Registration Desk</h1>
             <p className="text-gray-600">Step 1: Register new beneficiary details</p>
+            <div className="mt-2 p-2 bg-blue-50 rounded">
+              <p className="text-sm text-blue-800">
+                <strong>Event:</strong> {currentEvent.event_name} | 
+                <strong> Date:</strong> {new Date(currentEvent.event_date).toLocaleDateString()} | 
+                <strong> Location:</strong> {currentEvent.location}
+              </p>
+            </div>
           </div>
-        </div>
-
-        {/* Volunteer Name */}
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Your Volunteer Name *
-          </label>
-          <input
-            type="text"
-            value={volunteerName}
-            onChange={(e) => setVolunteerName(e.target.value)}
-            placeholder="Enter your name as volunteer"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Camp Date *
-              </label>
-              <input
-                type="date"
-                {...register('camp_date', { required: 'Camp date is required' })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {errors.camp_date && <p className="text-red-500 text-sm mt-1">{errors.camp_date.message}</p>}
-            </div>
-
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name *
               </label>
               <input
                 type="text"
                 {...register('name', { required: 'Name is required' })}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter full name"
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
@@ -191,7 +139,7 @@ export default function RegistrationPage() {
               <input
                 type="text"
                 {...register('father_name')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter father's name"
               />
             </div>
@@ -203,7 +151,7 @@ export default function RegistrationPage() {
               <input
                 type="date"
                 {...register('date_of_birth')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
               />
             </div>
 
@@ -214,7 +162,7 @@ export default function RegistrationPage() {
               <input
                 type="number"
                 {...register('age')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter age"
               />
             </div>
@@ -226,7 +174,7 @@ export default function RegistrationPage() {
               <input
                 type="tel"
                 {...register('phone_number')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter phone number"
               />
             </div>
@@ -238,7 +186,7 @@ export default function RegistrationPage() {
               <input
                 type="text"
                 {...register('aadhar_number')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter Aadhar number"
               />
             </div>
@@ -250,7 +198,7 @@ export default function RegistrationPage() {
               <input
                 type="text"
                 {...register('state')}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="Enter state"
               />
             </div>
@@ -263,7 +211,7 @@ export default function RegistrationPage() {
             <textarea
               {...register('address')}
               rows={3}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
               placeholder="Enter complete address"
             />
           </div>
@@ -274,7 +222,7 @@ export default function RegistrationPage() {
             </label>
             <select
               {...register('type_of_aid', { required: 'Type of aid is required' })}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
             >
               <option value="">Select type of aid</option>
               <option value="Below Knee">Below Knee Artificial Limb</option>
