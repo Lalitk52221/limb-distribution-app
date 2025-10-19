@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface RegistrationForm {
   name: string
@@ -240,13 +241,16 @@ export default function RegistrationPage() {
             {errors.type_of_aid && <p className="text-red-500 text-sm mt-1">{errors.type_of_aid.message}</p>}
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3 w-full">
             <button
               type="submit"
               disabled={uploading}
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-full"
             >
-              {uploading ? 'Registering...' : 'Register & Move to Step 2'}
+              {uploading ? 'Registering...' : 'Register'}
+            </button>
+            <button className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-1/3 ">
+              <Link href="/dashboard/before-photo">Next Step</Link>
             </button>
           </div>
         </form>

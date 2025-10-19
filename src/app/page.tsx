@@ -1,3 +1,4 @@
+"use client"
 import Link from 'next/link'
 
 const steps = [
@@ -12,6 +13,8 @@ const steps = [
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+     
+
       <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-16">

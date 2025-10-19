@@ -2,6 +2,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 
 interface Beneficiary {
   id: string
@@ -157,17 +158,23 @@ export default function BeforePhotoPage() {
                         }
                       }}
                       disabled={uploading === beneficiary.id}
-                      className="text-sm text-gray-600"
+                      className="text-sm text-gray-600 cursor-pointer hover:text-gray-800 bg-gray-100 p-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
                     />
                     {uploading === beneficiary.id && (
                       <span className="text-sm text-gray-500 ml-2">Uploading...</span>
                     )}
                   </div>
+                  
                 </div>
               </div>
             ))}
           </div>
         )}
+        <div className="flex justify-end mt-6">
+        <button disabled={uploading !== null} className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-1/3 ">
+              <Link href="/dashboard/measurement">Move to Measurement</Link>
+            </button>
+            </div>
       </div>
     </div>
   )
