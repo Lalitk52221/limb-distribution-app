@@ -1,196 +1,283 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-'use client'
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
-import { supabase } from '@/lib/supabase'
-import type { ExtraItem } from '@/types'
-import Link from 'next/link'
+"use client";
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { supabase } from "@/lib/supabase";
+import type { ExtraItem } from "@/types";
+import Link from "next/link";
 
 interface Beneficiary {
-  id: string
-  reg_number: string
-  name: string
-  type_of_aid: string
-  current_step: string
-  status?: string
-  before_photo_url?: string
-  after_photo_url?: string
-  extra_items?: ExtraItem[]
+  id: string;
+  reg_number: string;
+  name: string;
+  type_of_aid: string;
+  current_step: string;
+  status?: string;
+  before_photo_url?: string;
+  after_photo_url?: string;
+  extra_items?: ExtraItem[];
 }
 
 export default function AfterPhotoPage() {
-  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [uploadingId, setUploadingId] = useState<string | null>(null)
-  const [completingId, setCompletingId] = useState<string | null>(null)
-  const [revertingId, setRevertingId] = useState<string | null>(null)
-  const [currentEvent, setCurrentEvent] = useState<any>(null)
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [currentEvent, setCurrentEvent] = useState<any>(null);
 
   useEffect(() => {
-    const eventId = localStorage.getItem('current_event')
+    const eventId = localStorage.getItem("current_event");
     if (!eventId) {
-      alert('Please select an event first')
-      window.location.href = '/event-setup'
-      return
+      alert("Please select an event first");
+      window.location.href = "/event-setup";
+      return;
     }
-    fetchEvent(eventId)
-    fetchBeneficiaries(eventId)
-  }, [])
+    fetchEvent(eventId);
+    fetchBeneficiaries(eventId);
+  }, []);
 
   const fetchEvent = async (eventId: string) => {
     try {
       const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', eventId)
-        .single()
+        .from("events")
+        .select("*")
+        .eq("id", eventId)
+        .single();
 
-      if (error) throw error
-      setCurrentEvent(data)
+      if (error) throw error;
+      setCurrentEvent(data);
     } catch (error: any) {
-      console.error('Error:', error)
+      console.error("Error:", error);
     }
-  }
+  };
 
   const fetchBeneficiaries = async (eventId: string) => {
     try {
       const { data, error } = await supabase
-        .from('beneficiaries')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('current_step', 'after_photo')
-        .order('created_at', { ascending: true })
+        .from("beneficiaries")
+        .select("*")
+        .eq("event_id", eventId)
+        .eq("current_step", "after_photo")
+        .order("created_at", { ascending: true });
 
-      if (error) throw error
-      setBeneficiaries(data || [])
+      if (error) throw error;
+      setBeneficiaries(data || []);
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error loading beneficiaries: ' + error.message)
+      console.error("Error:", error);
+      alert("Error loading beneficiaries: " + error.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handlePhotoUpload = async (beneficiaryId: string, file: File) => {
-    setUploadingId(beneficiaryId)
+    setUploadingId(beneficiaryId);
     try {
-      // Upload photo to Supabase Storage
-      const fileExt = file.name.split('.').pop()
+      // Compress the image first to reduce storage usage (target ~300KB)
+      const compressImage = async (inputFile: File, targetKB = 300, maxWidth = 1280): Promise<Blob | null> => {
+        try {
+          let bitmap: ImageBitmap | null = null
+          if ('createImageBitmap' in window) {
+            bitmap = await (window as any).createImageBitmap(inputFile)
+          }
+
+          const img = document.createElement('img')
+          if (!bitmap) {
+            const dataUrl = await new Promise<string>((res, rej) => {
+              const fr = new FileReader()
+              fr.onload = () => res(fr.result as string)
+              fr.onerror = rej
+              fr.readAsDataURL(inputFile)
+            })
+            img.src = dataUrl
+            await new Promise((r) => (img.onload = r))
+          }
+
+          const naturalWidth = bitmap ? bitmap.width : img.naturalWidth
+          const naturalHeight = bitmap ? bitmap.height : img.naturalHeight
+          const scale = Math.min(1, maxWidth / naturalWidth)
+          const width = Math.max(1, Math.round(naturalWidth * scale))
+          const height = Math.max(1, Math.round(naturalHeight * scale))
+
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')!
+          if (bitmap) {
+            ctx.drawImage(bitmap, 0, 0, width, height)
+            bitmap.close()
+          } else {
+            ctx.drawImage(img, 0, 0, width, height)
+          }
+
+          // Try reducing quality until under targetKB
+          let quality = 0.92
+          let blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          const targetBytes = targetKB * 1024
+          while (blob && blob.size > targetBytes && quality > 0.45) {
+            quality -= 0.08
+            blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          }
+
+          // If still too large, reduce dimensions and retry
+          let curWidth = width
+          while (blob && blob.size > targetBytes && curWidth > 400) {
+            curWidth = Math.round(curWidth * 0.9)
+            const curHeight = Math.round((naturalHeight * curWidth) / naturalWidth)
+            canvas.width = curWidth
+            canvas.height = curHeight
+            ctx.clearRect(0, 0, curWidth, curHeight)
+            if (bitmap) {
+              const dataUrl = await new Promise<string>((res, rej) => {
+                const fr = new FileReader()
+                fr.onload = () => res(fr.result as string)
+                fr.onerror = rej
+                fr.readAsDataURL(inputFile)
+              })
+              const tempImg = document.createElement('img')
+              tempImg.src = dataUrl
+              await new Promise((r) => (tempImg.onload = r))
+              ctx.drawImage(tempImg, 0, 0, curWidth, curHeight)
+            } else {
+              ctx.drawImage(img, 0, 0, curWidth, curHeight)
+            }
+            quality = Math.max(0.5, quality - 0.05)
+            blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          }
+
+          return blob
+        } catch (err) {
+          console.error('Compression error:', err)
+          return null
+        }
+      }
+
+      const fileExt = 'jpg'
       const fileName = `after-${beneficiaryId}-${Date.now()}.${fileExt}`
-      
+
+      const compressedBlob = await compressImage(file, 300, 1280)
+      const uploadSource = compressedBlob ?? file
+
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(fileName, file)
+        .upload(fileName, uploadSource as Blob, { contentType: 'image/jpeg' })
 
       if (uploadError) throw uploadError
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName)
+      const publicData = supabase.storage.from('photos').getPublicUrl(fileName)
+      const publicUrl = (publicData as any)?.data?.publicUrl ?? (publicData as any)?.publicUrl ?? null
 
-      // Update beneficiary record - Mark as COMPLETED
       const { error: updateError } = await supabase
         .from('beneficiaries')
         .update({
           after_photo_url: publicUrl,
-          current_step: 'completed'
+          current_step: 'completed',
         })
         .eq('id', beneficiaryId)
 
       if (updateError) throw updateError
 
-      // Remove from local list
-      setBeneficiaries(prev => prev.filter(b => b.id !== beneficiaryId))
+      setBeneficiaries((prev) => prev.filter((b) => b.id !== beneficiaryId))
       alert('After photo uploaded! Process COMPLETED for this beneficiary. 🎉')
-      
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error uploading photo: ' + error.message)
+      console.error("Error:", error);
+      alert("Error uploading photo: " + error.message);
     } finally {
-      setUploadingId(null)
+      setUploadingId(null);
     }
-  }
+  };
 
   const revertToPreviousStep = async (beneficiaryId: string) => {
-    if (!confirm('Are you sure you want to send this beneficiary back to Extra Items step?')) {
-      return
+    if (
+      !confirm(
+        "Are you sure you want to send this beneficiary back to Extra Items step?"
+      )
+    ) {
+      return;
     }
 
-    setRevertingId(beneficiaryId)
+    setRevertingId(beneficiaryId);
     try {
       const { error } = await supabase
-        .from('beneficiaries')
+        .from("beneficiaries")
         .update({
-          current_step: 'extra_items',
-          after_photo_url: null
+          current_step: "extra_items",
+          after_photo_url: null,
         })
-        .eq('id', beneficiaryId)
+        .eq("id", beneficiaryId);
 
-      if (error) throw error
+      if (error) throw error;
 
       // Remove from local list
-      setBeneficiaries(prev => prev.filter(b => b.id !== beneficiaryId))
-      alert('Beneficiary sent back to Extra Items step')
-      
+      setBeneficiaries((prev) => prev.filter((b) => b.id !== beneficiaryId));
+      alert("Beneficiary sent back to Extra Items step");
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error reverting step: ' + error.message)
+      console.error("Error:", error);
+      alert("Error reverting step: " + error.message);
     } finally {
-      setRevertingId(null)
+      setRevertingId(null);
     }
-  }
+  };
 
   const markAsCompletedWithoutPhoto = async (beneficiaryId: string) => {
-    if (!confirm('Mark as completed without after photo? This will complete the process but no after photo will be recorded.')) {
-      return
+    if (
+      !confirm(
+        "Mark as completed without after photo? This will complete the process but no after photo will be recorded."
+      )
+    ) {
+      return;
     }
 
-    setCompletingId(beneficiaryId)
+    setCompletingId(beneficiaryId);
     try {
       const { error } = await supabase
-        .from('beneficiaries')
+        .from("beneficiaries")
         .update({
-          current_step: 'completed',
-          after_photo_url: null
+          current_step: "completed",
+          after_photo_url: null,
         })
-        .eq('id', beneficiaryId)
+        .eq("id", beneficiaryId);
 
-      if (error) throw error
+      if (error) throw error;
 
       // Remove from local list
-      setBeneficiaries(prev => prev.filter(b => b.id !== beneficiaryId))
-      alert('Process marked as completed without photo.')
-      
+      setBeneficiaries((prev) => prev.filter((b) => b.id !== beneficiaryId));
+      alert("Process marked as completed without photo.");
     } catch (error: any) {
-      console.error('Error:', error)
-      alert('Error updating status: ' + error.message)
+      console.error("Error:", error);
+      alert("Error updating status: " + error.message);
     } finally {
-      setCompletingId(null)
+      setCompletingId(null);
     }
-  }
+  };
 
   const getExtraItemsText = (beneficiary: Beneficiary) => {
     if (!beneficiary.extra_items || beneficiary.extra_items.length === 0) {
-      return 'No extra items'
+      return "No extra items";
     }
-    
+
     return beneficiary.extra_items
       .map((item: any) => {
         if (item.quantity && item.quantity > 1) {
-          return `${item.quantity} ${item.name || item.item}`
+          return `${item.quantity} ${item.name || item.item}`;
         }
-        return item.name || item.item
+        return item.name || item.item;
       })
-      .join(', ')
-  }
+      .join(", ");
+  };
 
   // Helper function to check if any action is in progress for a beneficiary
   const isActionInProgress = (beneficiaryId: string) => {
-    return uploadingId === beneficiaryId || completingId === beneficiaryId || revertingId === beneficiaryId
-  }
+    return (
+      uploadingId === beneficiaryId ||
+      completingId === beneficiaryId ||
+      revertingId === beneficiaryId
+    );
+  };
 
-  if (loading) return <div className="text-center py-8 text-black">Loading...</div>
+  if (loading)
+    return <div className="text-center py-8 text-black">Loading...</div>;
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
@@ -200,11 +287,16 @@ export default function AfterPhotoPage() {
             6
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">After Photography</h1>
-            <p className="text-gray-600">Step 6: Final photo with fitted artificial limb</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              After Photography
+            </h1>
+            <p className="text-gray-600">
+              Step 6: Final photo with fitted artificial limb
+            </p>
             {currentEvent && (
               <p className="text-sm text-gray-500 mt-1">
-                Event: {currentEvent.event_name} | {new Date(currentEvent.event_date).toLocaleDateString()}
+                Event: {currentEvent.event_name} |{" "}
+                {new Date(currentEvent.event_date).toLocaleDateString()}
               </p>
             )}
           </div>
@@ -213,22 +305,35 @@ export default function AfterPhotoPage() {
         {beneficiaries.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <div className="text-6xl mb-4">🎉</div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">All Caught Up!</h3>
-            <p className="text-gray-600">No beneficiaries waiting for after photography.</p>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">
+              All Caught Up!
+            </h3>
+            <p className="text-gray-600">
+              No beneficiaries waiting for after photography.
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
             {beneficiaries.map((beneficiary) => (
-              <div key={beneficiary.id} className="border border-gray-200 rounded-lg p-6">
+              <div
+                key={beneficiary.id}
+                className="border border-gray-200 rounded-lg p-6"
+              >
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="font-semibold text-lg text-gray-900">{beneficiary.name}</h3>
-                    <p className="text-gray-600">Reg: {beneficiary.reg_number}</p>
-                    <p className="text-sm text-gray-500">Aid: {beneficiary.type_of_aid}</p>
+                    <h3 className="font-semibold text-lg text-gray-900">
+                      {beneficiary.name}
+                    </h3>
+                    <p className="text-gray-600">
+                      Reg: {beneficiary.reg_number}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Aid: {beneficiary.type_of_aid}
+                    </p>
                     <p className="text-sm text-gray-500 mt-1">
                       Extra Items: {getExtraItemsText(beneficiary)}
                     </p>
-                    
+
                     <div className="mt-2">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-pink-100 text-pink-800">
                         📸 Ready for Final Photo
@@ -241,18 +346,17 @@ export default function AfterPhotoPage() {
                 {beneficiary.before_photo_url && (
                   <div className="mb-4">
                     <Image
-                      src={beneficiary.before_photo_url || ''}
+                      src={beneficiary.before_photo_url || ""}
                       alt="Before"
                       width={128}
                       height={128}
                       className="w-32 h-32 object-cover rounded-lg border shadow-sm"
-                      style={{ objectFit: 'cover' }}
+                      style={{ objectFit: "cover" }}
                       unoptimized={true}
                     />
-                    
                   </div>
                 )}
-                
+
                 {/* Photo Upload Section */}
                 <div className="mb-4 p-4 bg-blue-50 rounded-lg">
                   <label className="block text-sm font-medium text-blue-700 mb-2">
@@ -265,16 +369,17 @@ export default function AfterPhotoPage() {
                         accept="image/*"
                         capture="environment"
                         onChange={(e) => {
-                          const file = e.target.files?.[0]
+                          const file = e.target.files?.[0];
                           if (file) {
-                            handlePhotoUpload(beneficiary.id, file)
+                            handlePhotoUpload(beneficiary.id, file);
                           }
                         }}
                         disabled={isActionInProgress(beneficiary.id)}
                         className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
                       />
                       <p className="text-xs text-blue-600 mt-1">
-                        Take a clear photo of the beneficiary with their fitted artificial limb
+                        Take a clear photo of the beneficiary with their fitted
+                        artificial limb
                       </p>
                     </div>
                   </div>
@@ -306,7 +411,7 @@ export default function AfterPhotoPage() {
                     className="px-4 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center"
                     title="Send back to Extra Items step"
                   >
-                    {revertingId === beneficiary.id ? '...' : '↩️'}
+                    {revertingId === beneficiary.id ? "..." : "↩️"}
                   </button>
                 </div>
 
@@ -319,9 +424,12 @@ export default function AfterPhotoPage() {
                       </div>
                     </div>
                     <div className="ml-3">
-                      <h4 className="text-sm font-medium text-green-800">Final Step!</h4>
+                      <h4 className="text-sm font-medium text-green-800">
+                        Final Step!
+                      </h4>
                       <p className="text-sm text-green-700">
-                        After uploading the photo, the beneficiary&apos;s process will be marked as <strong>COMPLETED</strong>.
+                        After uploading the photo, the beneficiary&apos;s
+                        process will be marked as <strong>COMPLETED</strong>.
                       </p>
                     </div>
                   </div>
@@ -335,16 +443,23 @@ export default function AfterPhotoPage() {
         <div className="mt-8 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">Final Step Progress</h3>
+              <h3 className="font-semibold text-gray-900">
+                Final Step Progress
+              </h3>
               <p className="text-gray-700 text-sm">
-                {beneficiaries.length} {beneficiaries.length === 1 ? 'person' : 'people'} waiting for final photos
+                {beneficiaries.length}{" "}
+                {beneficiaries.length === 1 ? "person" : "people"} waiting for
+                final photos
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Each completion represents one successful artificial limb distribution
+                Each completion represents one successful artificial limb
+                distribution
               </p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-green-600">{beneficiaries.length}</div>
+              <div className="text-2xl font-bold text-green-600">
+                {beneficiaries.length}
+              </div>
               <div className="text-sm text-green-800">Almost Done!</div>
             </div>
           </div>
@@ -356,18 +471,21 @@ export default function AfterPhotoPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
               <span className="text-2xl">🎊</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Amazing Work!</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Amazing Work!
+            </h3>
             <p className="text-gray-600">
-              You&apos;ve helped transform lives through artificial limb distribution. Thank you for your service! 🙏
+              You&apos;ve helped transform lives through artificial limb
+              distribution. Thank you for your service! 🙏
             </p>
           </div>
         )}
         <div className="flex justify-end mt-6">
-                <button className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-1/3 ">
-                      <Link href="/dashboard/summary">Go to Camp Summary</Link>
-                    </button>
-                    </div>
+          <button className="bg-green-600 text-sm text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-full ">
+            <Link href="/dashboard/summary">Go to Camp Summary</Link>
+          </button>
+        </div>
       </div>
     </div>
-  )
+  );
 }

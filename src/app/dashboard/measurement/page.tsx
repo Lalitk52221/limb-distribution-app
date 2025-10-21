@@ -218,8 +218,8 @@ export default function MeasurementPage() {
             </div>
           </div>
         </div>
-        <div className="flex justify-end mt-6">
-          <button className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-1/3 ">
+        <div className="flex justify-end mt-6 ">
+          <button className="bg-green-600 text-sm text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-full ">
             <Link href="/dashboard/fitment">Move to Fitment</Link>
           </button>
         </div>

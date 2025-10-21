@@ -66,20 +66,104 @@ export default function BeforePhotoPage() {
   const handlePhotoUpload = async (beneficiaryId: string, file: File) => {
     setUpdating(beneficiaryId)
     try {
-      // Upload photo to Supabase Storage
-      const fileExt = file.name.split('.').pop()
+      // Compress the image first to reduce storage usage (target ~300KB)
+      const compressImage = async (inputFile: File, targetKB = 300, maxWidth = 1280): Promise<Blob | null> => {
+        try {
+          // createImageBitmap is efficient; fallback to HTMLImageElement if not available
+          let bitmap: ImageBitmap | null = null
+          if ('createImageBitmap' in window) {
+            bitmap = await (window as any).createImageBitmap(inputFile)
+          }
+
+          const img = document.createElement('img')
+          if (!bitmap) {
+            const dataUrl = await new Promise<string>((res, rej) => {
+              const fr = new FileReader()
+              fr.onload = () => res(fr.result as string)
+              fr.onerror = rej
+              fr.readAsDataURL(inputFile)
+            })
+            img.src = dataUrl
+            await new Promise((r) => (img.onload = r))
+          }
+
+          const naturalWidth = bitmap ? bitmap.width : img.naturalWidth
+          const naturalHeight = bitmap ? bitmap.height : img.naturalHeight
+          const scale = Math.min(1, maxWidth / naturalWidth)
+          const width = Math.max(1, Math.round(naturalWidth * scale))
+          const height = Math.max(1, Math.round(naturalHeight * scale))
+
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')!
+          if (bitmap) {
+            ctx.drawImage(bitmap, 0, 0, width, height)
+            bitmap.close()
+          } else {
+            ctx.drawImage(img, 0, 0, width, height)
+          }
+
+          // Try reducing quality until under targetKB
+          let quality = 0.92
+          let blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          const targetBytes = targetKB * 1024
+          while (blob && blob.size > targetBytes && quality > 0.45) {
+            quality -= 0.08
+            blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          }
+
+          // If still too large, reduce dimensions and retry
+          let curWidth = width
+          while (blob && blob.size > targetBytes && curWidth > 400) {
+            curWidth = Math.round(curWidth * 0.9)
+            const curHeight = Math.round((naturalHeight * curWidth) / naturalWidth)
+            canvas.width = curWidth
+            canvas.height = curHeight
+            ctx.clearRect(0, 0, curWidth, curHeight)
+            if (bitmap) {
+              // cannot redraw bitmap after closed; recreate from file
+              const dataUrl = await new Promise<string>((res, rej) => {
+                const fr = new FileReader()
+                fr.onload = () => res(fr.result as string)
+                fr.onerror = rej
+                fr.readAsDataURL(inputFile)
+              })
+              const tempImg = document.createElement('img')
+              tempImg.src = dataUrl
+              await new Promise((r) => (tempImg.onload = r))
+              ctx.drawImage(tempImg, 0, 0, curWidth, curHeight)
+            } else {
+              ctx.drawImage(img, 0, 0, curWidth, curHeight)
+            }
+            quality = Math.max(0.5, quality - 0.05)
+            blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+          }
+
+          return blob
+        } catch (err) {
+          console.error('Compression error:', err)
+          return null
+        }
+      }
+
+      const fileExt = 'jpg'
       const fileName = `before-${beneficiaryId}-${Date.now()}.${fileExt}`
-      
+
+      // compress
+      const compressedBlob = await compressImage(file, 300, 1280)
+      const uploadSource = compressedBlob ?? file
+
+      // Upload compressed photo to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(fileName, file)
+        .upload(fileName, uploadSource as Blob, { contentType: 'image/jpeg' })
 
       if (uploadError) throw uploadError
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName)
+      const publicData = supabase.storage.from('photos').getPublicUrl(fileName)
+      const publicUrl = (publicData as any)?.data?.publicUrl ?? (publicData as any)?.publicUrl ?? null
 
       // Update beneficiary
       const beneficiary = beneficiaries.find(b => b.id === beneficiaryId)
@@ -171,7 +255,7 @@ export default function BeforePhotoPage() {
           </div>
         )}
         <div className="flex justify-end mt-6">
-        <button disabled={uploading !== null} className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-1/3 ">
+        <button disabled={uploading !== null} className="bg-green-600 text-white text-sm px-8 py-3 rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium w-full ">
               <Link href="/dashboard/measurement">Move to Measurement</Link>
             </button>
             </div>
