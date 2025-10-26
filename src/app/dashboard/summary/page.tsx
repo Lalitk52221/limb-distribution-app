@@ -279,8 +279,8 @@ export default function SummaryPage() {
   if (!summary) return <div className="text-center py-8 text-black">No data available</div>
 
   const successRate = summary.total_beneficiaries > 0 ? Math.round((summary.completed_beneficiaries / summary.total_beneficiaries) * 100) : 0
-  const totalAidItems = Object.values(summary.aid_types).reduce((a, b) => a + b, 0)
-  const totalExtraItems = Object.values(summary.extra_items_stats).reduce((a, b) => a + b, 0)
+  // const totalAidItems = Object.values(summary.aid_types).reduce((a, b) => a + b, 0)
+  // const totalExtraItems = Object.values(summary.extra_items_stats).reduce((a, b) => a + b, 0)
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
