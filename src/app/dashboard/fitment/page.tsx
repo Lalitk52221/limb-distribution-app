@@ -8,10 +8,34 @@ interface Beneficiary {
   id: string;
   reg_number: string;
   name: string;
-  type_of_aid: string;
+  type_of_aid: any;
   current_step: string;
   measurement_data?: any;
   fitment_data?: any;
+}
+const formatTypeOfAid = (data: any) => {
+  if (!data || typeof data !== 'object') return 'Not specified'
+  const aidParts = []
+  if (data.left_below_knee) aidParts.push('Left Below Knee')
+  if (data.left_above_knee) aidParts.push('Left Above Knee')
+  if (data.right_below_knee) aidParts.push('Right Below Knee')
+  if (data.right_above_knee) aidParts.push('Right Above Knee')
+  if (data.left_caliper) aidParts.push('Left Caliper')
+  if (data.right_caliper) aidParts.push('Right Caliper')
+  if (data.above_hand) aidParts.push('Above Hand')
+  if (data.below_hand) aidParts.push('Below Hand')
+  if (data.shoes) aidParts.push('Shoes')
+  if (data.gloves) aidParts.push('Gloves')
+  if (data.walker) aidParts.push('Walker')
+  if (data.stick) aidParts.push(`Stick (Qty: ${data.stick_qty || 1})`)
+  if (data.crutches)
+    aidParts.push(`Crutches (Qty: ${data.crutches_qty || 1})`)
+  if (data.elbow_crutches)
+    aidParts.push(`Elbow Crutches (Qty: ${data.elbow_crutches_qty || 1})`)
+  if (data.others && data.others_specify)
+    aidParts.push(`Other: ${data.others_specify}`)
+
+  return aidParts.join(', ') || 'Not specified'
 }
 
 export default function FitmentPage() {
@@ -166,7 +190,7 @@ export default function FitmentPage() {
                       Reg: {beneficiary.reg_number}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Aid: {beneficiary.type_of_aid}
+                      Aid: {formatTypeOfAid(beneficiary.type_of_aid)}
                     </p>
 
                     {/* Measurement Status */}

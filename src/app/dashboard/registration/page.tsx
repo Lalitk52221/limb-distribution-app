@@ -162,7 +162,8 @@ export default function RegistrationPage() {
         camp_date: currentEvent?.event_date ?? null,
         current_step: "before_photo",
         completed_steps: ["registration"],
-        type_of_aid: formattedAid,
+        type_of_aid: finalData.type_of_aid, // Save the raw object
+        type_of_aid_display: formattedAid, // Save formatted string in a new field for display
       };
 
       const insertRes = await supabase

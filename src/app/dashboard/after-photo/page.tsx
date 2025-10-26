@@ -10,7 +10,7 @@ interface Beneficiary {
   id: string;
   reg_number: string;
   name: string;
-  type_of_aid: string;
+  type_of_aid: any;
   current_step: string;
   status?: string;
   before_photo_url?: string;
@@ -18,6 +18,30 @@ interface Beneficiary {
   extra_items?: ExtraItem[];
 }
 
+const formatTypeOfAid = (data: any) => {
+  if (!data || typeof data !== 'object') return 'Not specified'
+  const aidParts = []
+  if (data.left_below_knee) aidParts.push('Left Below Knee')
+  if (data.left_above_knee) aidParts.push('Left Above Knee')
+  if (data.right_below_knee) aidParts.push('Right Below Knee')
+  if (data.right_above_knee) aidParts.push('Right Above Knee')
+  if (data.left_caliper) aidParts.push('Left Caliper')
+  if (data.right_caliper) aidParts.push('Right Caliper')
+  if (data.above_hand) aidParts.push('Above Hand')
+  if (data.below_hand) aidParts.push('Below Hand')
+  if (data.shoes) aidParts.push('Shoes')
+  if (data.gloves) aidParts.push('Gloves')
+  if (data.walker) aidParts.push('Walker')
+  if (data.stick) aidParts.push(`Stick (Qty: ${data.stick_qty || 1})`)
+  if (data.crutches)
+    aidParts.push(`Crutches (Qty: ${data.crutches_qty || 1})`)
+  if (data.elbow_crutches)
+    aidParts.push(`Elbow Crutches (Qty: ${data.elbow_crutches_qty || 1})`)
+  if (data.others && data.others_specify)
+    aidParts.push(`Other: ${data.others_specify}`)
+
+  return aidParts.join(', ') || 'Not specified'
+}
 export default function AfterPhotoPage() {
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -328,7 +352,7 @@ export default function AfterPhotoPage() {
                       Reg: {beneficiary.reg_number}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Aid: {beneficiary.type_of_aid}
+                      Aid: {formatTypeOfAid(beneficiary.type_of_aid)}
                     </p>
                     <p className="text-sm text-gray-500 mt-1">
                       Extra Items: {getExtraItemsText(beneficiary)}
@@ -375,7 +399,7 @@ export default function AfterPhotoPage() {
                           }
                         }}
                         disabled={isActionInProgress(beneficiary.id)}
-                        className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+                        className="w-full ring-amber-300 ring rounded-lg text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 p-3 bg-blue-200"
                       />
                       <p className="text-xs text-blue-600 mt-1">
                         Take a clear photo of the beneficiary with their fitted

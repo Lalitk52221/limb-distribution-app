@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Image from 'next/image'
 import Link from 'next/link'
+import { FaHome } from 'react-icons/fa'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -27,12 +28,12 @@ export default function RootLayout({
                 <Link href="/" className="flex items-center">
                   <Image src="/images/Saksham_logo.png" alt="Logo" width={150} height={150} className='object-contain  ' />
                 </Link>
-                <div>
-                  <Link href="/" className='text-xl font-semibold cursor-pointer text-black '> Home </Link>
+                <div className='flex items-end justify-center' >
+                  <Link href="/" className='text-md font-semibold cursor-pointer text-black flex items-end justify-center gap-1'> <FaHome size={35} className='text-blue-600' /> Home </Link>
                 </div>
-                <Link href="/">
+                {/* <Link href="/">
                 <Image src="/images/SMF_logo.png" alt="Logo" width={150} height={150} className='object-contain' />
-                </Link>
+                </Link> */}
               </div>
             </div>
           </nav>
